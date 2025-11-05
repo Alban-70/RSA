@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Chat RSA</title>
+  <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+  <h2>Messagerie instantanée</h2>
+      <button href="/test_crypto">Test Crypto</button>
+  <div id="chat-box"></div>
+
+  <input id="msg" type="text" placeholder="Écris ton message...">
+  <button onclick="sendMessage()">Envoyer</button>
+
+  <script src="{{ url_for('static', filename='js/chat.js') }}"></script>
+</body>
+</html>
