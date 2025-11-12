@@ -3,20 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home Page</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>Crypto Chat</title>
+    <link rel="stylesheet" href="../static/style/style.css">
+    
 </head>
 <body>
-    <h1>Welcome to the Home Page</h1>
-    <p>This is a simple web page.</p>
-    <button href="/test_crypto">Test Crypto</button>
-    <div id="crypto-results"></div>
 
-    {% if original_message and coded_message and decoded_message %}
-    <h2>Crypto Test Results</h2>
-    <p><strong>Original Message:</strong> {{ original_message }}</p>
-    <p><strong>Coded Message:</strong> {{ coded_message }}</p>
-    <p><strong>Decoded Message:</strong> {{ decoded_message }}</p>
-    {% endif %}
+
+
+    <div class="block_title">
+        <p class="title">Welcome to Crypto Chat</p>
+    </div>
+
+    <input type="text" id="username-local" placeholder="Entrer ton nom d'utilisateur">
+    <input type="text" id="username-input" placeholder="Entrer le nom d'utilisateur à qui vous vouler parler">
+
+    <button onclick="window.location.href='/generate_key'">Test Crypto</button>
+    <p>Ta clé privée : {{ private_key if private_key is defined else 'Non fournie' }}</p>
+    <p>Ta clé publique : {{ public_key if public_key is defined else 'Non fournie' }}</p>
+
+    <div id="chat-container">
+      {% if original_message and coded_message and decoded_message %}
+        <div class="chat-bubble user">{{ original_message }}</div>
+        <div class="chat-bubble bot">{{ encrypted_message }}</div>
+        <div class="chat-bubble user">{{ decoded_message }}</div>
+      {% endif %}
+    </div>
+
+    <form id="chat-form" action="/crypter_message" method="POST">
+      <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
+      <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
+      <input type="text" id="chat-input" placeholder="Écris un message...">
+      <button type="submit" id="chat-submit">Envoyer</button>
+    </form>
+
+    <form action="/crypter_message" method="POST">
+      <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
+      <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
+      <input type="text" name="message" placeholder="Enter a message">
+      <button type="submit">Crypter le message</button>
+    </form>
+
+    <p>Ton message crypté : <span id="encrypted-message">{{ encrypted_message if encrypted_message is defined else 'Aucun message crypté' }}</span></p>
+
+    <form action="/decrypter_message" method="POST">
+      <input type="hidden" name="n_priv" value="{{ private_key[0] if private_key else '' }}">
+      <input type="hidden" name="d_priv" value="{{ private_key[1] if private_key else '' }}">
+      <input type="text" name="coded_message" placeholder="Enter the coded message">
+      <button type="submit">Décrypter le message</button>
+    </form>
+
+    <p>Ton message décrypté : <span id="decrypted-message">{{ decrypted_message if decrypted_message is defined else 'Aucun message décrypté' }}</span></p>
+
+
+    <script src="../static/js/reponse.js"></script>
 </body>
 </html>

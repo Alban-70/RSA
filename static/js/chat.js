@@ -17,3 +17,5 @@ function sendMessage() {
   socket.send(text);
   input.value = '';
 }
+
+
