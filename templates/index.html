@@ -32,33 +32,15 @@
         {% endfor %}
     </div>
 
-<<<<<<< HEAD
-    <form id="chat-form" action="/crypter_message" method="POST">
-      <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
-      <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
-      <!-- Champ destinataire (dupliquer ici pour que le formulaire l'envoie) -->
-      <input type="text" name="username-input" id="username-input-form" placeholder="Destinataire">
-      <input type="text" id="chat-input" name="message" placeholder="Écris un message...">
-      <button type="submit" id="chat-submit">Envoyer</button>
-    </form>
-=======
->>>>>>> 9373e396b6074b0092fc51bd437b9c335e7ea9f2
 
     <form id="chat-form" action="/crypter_message" method="POST">
         <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
         <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
         <input type="text" id="chat-input" name="message" placeholder="Écris un message...">
+        <input type="text" name="username-input" placeholder="Destinataire">
         <button type="submit" id="chat-submit">Envoyer</button>
     </form>
-    <!-- 
-    <form action="/crypter_message" method="POST">
-      <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
-      <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
-      <!-- Champ destinataire -->
-      <input type="text" name="username-input" placeholder="Destinataire">
-      <input type="text" name="message" placeholder="Enter a message">
-      <button type="submit">Crypter le message</button>
-    </form> -->
+
 
     <p>Ton message crypté : <span id="encrypted-message">{{ encrypted_message if encrypted_message is defined else
             'Aucun message crypté' }}</span></p>
