@@ -7,6 +7,7 @@ socket.on('connect', () => {
 socket.on('message', (data) => {
   const chatBox = document.getElementById('chat-box');
   const msg = document.createElement('p');
+  
   msg.textContent = data;
   chatBox.appendChild(msg);
 });

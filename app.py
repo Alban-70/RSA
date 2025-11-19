@@ -51,17 +51,25 @@ def crypter_message():
     if not M:
         return "Message vide.", 400
 
-    message_ints = [ord(c) for c in M]
-    C = [codageRSA(m, n_pub, e_pub) for m in message_ints]
+    C = [codageRSA(ord(c), n_pub, e_pub) for c in M]
 
-    session['encrypted_message'] = C
-    session.pop('decrypted_message', None)
+    encrypted_str = ' '.join(str(x) for x in C)
+    
+    if 'chat_history' not in session:
+        session['chat_history'] = []
+        
+    session['chat_history'].append({"type": "user", "text": M})
+    session['chat_history'].append({"type": "bot", "text": encrypted_str})
+    
+    session['encrypted_message'] = encrypted_str
+    # session.pop('decrypted_message', None)
 
     return render_template(
         'index.html',
         private_key=session.get('private_key'),
-        public_key=public_key,
-        encrypted_message=C
+        public_key=session.get('public_key'),
+        encrypted_message=encrypted_str,
+        chat_history=session['chat_history']
     )
 
 @app.route('/decrypter_message', methods=['POST'])
@@ -73,6 +81,8 @@ def decrypter_message():
     n_priv, d_priv = private_key
 
     C = session.get('encrypted_message')
+    C_list = [int(x) for x in session['encrypted_message'].split()]
+
     if not C:
         return "Aucun message à déchiffrer.", 400
 

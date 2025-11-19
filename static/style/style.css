@@ -129,6 +129,7 @@
       font-weight: bold;
       word-break: break-word;
       color: #1E90FF;
+      display: none;
     }
 
     p { text-align: center; margin: 8px 0; }
