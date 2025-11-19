@@ -5,12 +5,13 @@ socket.on('connect', () => {
 });
 
 socket.on('message', (data) => {
-  const chatBox = document.getElementById('chat-box');
-  const msg = document.createElement('p');
-  
+  const chatContainer = document.getElementById('chat-container'); // ou chat-box
+  const msg = document.createElement('div');
+  msg.classList.add('chat-bubble', 'bot');
   msg.textContent = data;
-  chatBox.appendChild(msg);
+  chatContainer.appendChild(msg);
 });
+
 
 function sendMessage() {
   const input = document.getElementById('msg');
