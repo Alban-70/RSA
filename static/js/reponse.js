@@ -10,30 +10,30 @@ function addMessage(message, sender='user') {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
-const codedMessageSpan = document.getElementById('encrypted_message');
-const codedMessage = codedMessageSpan ? codedMessageSpan.textContent : null;
-
-// Afficher le message crypté côté bot au chargement
-if (codedMessage && codedMessage !== 'Aucun message crypté') {
-  addMessage(codedMessage, 'bot');
-}
-
-chatForm.addEventListener('submit', (e) => {
+chatForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const message = chatInput.value.trim();
   if (!message) return;
 
-  // Ajouter le message de l'utilisateur
+  // Ajouter le message utilisateur dans le chat
   addMessage(message, 'user');
 
-  // Réponse automatique simulée
-  setTimeout(() => {
-    if (codedMessage && codedMessage !== 'Aucun message crypté') {
-      addMessage(codedMessage, 'bot');
-    } else {
-      addMessage(`Réponse automatique: ${message.split('').reverse().join('')}`, 'bot');
-    }
-  }, 600);
+  // Préparer les données à envoyer
+  const formData = new FormData(chatForm);
+
+  // Envoyer au serveur via fetch
+  const response = await fetch(chatForm.action, {
+    method: 'POST',
+    body: formData
+  });
+
+  // Récupérer la réponse JSON du serveur
+  const data = await response.json();
+
+  // Afficher le message crypté côté bot
+  if (data.coded_message) {
+    addMessage(data.coded_message, 'bot');
+  }
 
   chatInput.value = '';
 });

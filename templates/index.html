@@ -8,15 +8,16 @@
     
 </head>
 <body>
-
+      {{ get_flashed_messages() }}
 
 
     <div class="block_title">
         <p class="title">Welcome to Crypto Chat</p>
+        <p>Connecté en tant que {{ session.get('username') }}</p>
     </div>
+    <button onclick="window.location.href='/disconnect'">Se déconnecter</button>
 
-    <input type="text" id="username-local" placeholder="Entrer ton nom d'utilisateur">
-    <input type="text" id="username-input" placeholder="Entrer le nom d'utilisateur à qui vous vouler parler">
+  <!-- Champ global supprimé: on garde uniquement les champs destinataire à l'intérieur des formulaires -->
 
     <button onclick="window.location.href='/generate_key'">Test Crypto</button>
     <p>Ta clé privée : {{ private_key if private_key is defined else 'Non fournie' }}</p>
@@ -33,13 +34,17 @@
     <form id="chat-form" action="/crypter_message" method="POST">
       <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
       <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
-      <input type="text" id="chat-input" placeholder="Écris un message...">
+      <!-- Champ destinataire (dupliquer ici pour que le formulaire l'envoie) -->
+      <input type="text" name="username-input" id="username-input-form" placeholder="Destinataire">
+      <input type="text" id="chat-input" name="message" placeholder="Écris un message...">
       <button type="submit" id="chat-submit">Envoyer</button>
     </form>
 
     <form action="/crypter_message" method="POST">
       <input type="hidden" name="n_pub" value="{{ public_key[0] if public_key else '' }}">
       <input type="hidden" name="e_pub" value="{{ public_key[1] if public_key else '' }}">
+      <!-- Champ destinataire -->
+      <input type="text" name="username-input" placeholder="Destinataire">
       <input type="text" name="message" placeholder="Enter a message">
       <button type="submit">Crypter le message</button>
     </form>
@@ -54,6 +59,10 @@
     </form>
 
     <p>Ton message décrypté : <span id="decrypted-message">{{ decrypted_message if decrypted_message is defined else 'Aucun message décrypté' }}</span></p>
+
+    <button onclick="window.location.href='/show_message'">Voir les messages reçus</button>
+
+    <p>Messages reçus : {{ received_messages if received_messages is defined else 'Aucun message reçu' }}</p>
 
 
     <script src="../static/js/reponse.js"></script>
