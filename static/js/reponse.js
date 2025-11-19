@@ -10,11 +10,17 @@ function addMessage(message, sender='user') {
   chatContainer.scrollTop = chatContainer.scrollHeight;
 }
 
+<<<<<<< HEAD
 chatForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const message = chatInput.value.trim();
-  if (!message) return;
+=======
 
+chatForm.addEventListener('submit', (e) => {
+>>>>>>> 9373e396b6074b0092fc51bd437b9c335e7ea9f2
+  e.preventDefault();
+  
+  if (!chatInput.value.trim()) return;
+
+<<<<<<< HEAD
   // Ajouter le message utilisateur dans le chat
   addMessage(message, 'user');
 
@@ -36,4 +42,7 @@ chatForm.addEventListener('submit', async (e) => {
   }
 
   chatInput.value = '';
+=======
+  chatForm.submit();  // laisser Flask gérer l’historique
+>>>>>>> 9373e396b6074b0092fc51bd437b9c335e7ea9f2
 });

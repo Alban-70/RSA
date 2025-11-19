@@ -183,6 +183,8 @@ def decrypter_message():
     n_priv, d_priv = private_key
 
     C = session.get('encrypted_message')
+    C_list = [int(x) for x in session['encrypted_message'].split()]
+
     if not C:
         return "Aucun message à déchiffrer.", 400
 
