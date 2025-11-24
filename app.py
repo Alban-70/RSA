@@ -1,29 +1,25 @@
-from crypto import choixCle, clePrivee, clePublique, codageRSA, decodageRSA
-from flask import Flask, render_template, request, session
-from argon2 import PasswordHasher
-from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHash
-
-app = Flask(__name__)
-app.config['SECRET_KEY'] = 'supersecret!'
-
 #! /usr/bin/python
 # -*- coding:utf-8 -*-
-from flask import Flask, request, render_template, redirect, flash
+
+from flask import Flask, render_template, request, redirect, flash, session, g
+from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError, VerificationError, InvalidHash
+import pymysql.cursors
+import os
+from dotenv import load_dotenv
+import ast
+
+from crypto import choixCle, clePrivee, clePublique, codageRSA, decodageRSA
+
+load_dotenv()
 
 app = Flask(__name__)
-app.secret_key = 'une cle(token) : grain de sel(any random string)'
-
-from flask import session, g
-import pymysql.cursors
-
-import os                                 # à ajouter
-from dotenv import load_dotenv            # à ajouter
-load_dotenv()                             # à ajouter
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'supersecret!')
 
 ph = PasswordHasher()
 
+
 def hash_password(password: str) -> str:
-    # renvoie le hash encodé (inclut le salt et les paramètres)
     return ph.hash(password)
 
 def verify_password(stored_hash: str, password_attempt: str) -> bool:
@@ -32,18 +28,15 @@ def verify_password(stored_hash: str, password_attempt: str) -> bool:
     except VerifyMismatchError:
         return False
     except (VerificationError, InvalidHash):
-        # hash corrompu ou autre erreur
         return False
-    
-
 
 def get_db():
     if 'db' not in g:
-        g.db =  pymysql.connect(
-            host=os.environ.get("HOST"),                # à modifier
-            user=os.environ.get("LOGIN"),               # à modifier
-            password=os.environ.get("PASSWORD"),        # à modifier
-            database=os.environ.get("DATABASE"),        # à modifier
+        g.db = pymysql.connect(
+            host=os.environ.get("HOST"),
+            user=os.environ.get("LOGIN"),
+            password=os.environ.get("PASSWORD"),
+            database=os.environ.get("DATABASE"),
             charset='utf8mb4',
             cursorclass=pymysql.cursors.DictCursor
         )
@@ -51,42 +44,110 @@ def get_db():
 
 @app.teardown_appcontext
 def teardown_db(exception):
-    db = g.pop('db', None)  
+    db = g.pop('db', None)
     if db is not None:
         db.close()
 
-
 @app.route('/')
 def index():
-
     if 'username' not in session:
-        return render_template(
-            'login.html',
-        )
+        return render_template('login.html')
 
+    username = session.get('username')
+    private_key = session.get('private_key')
+    selected_contact = session.get('last_destinataire')
+    
+    db = get_db()
+    cursor = db.cursor()
+    cursor.execute("SELECT username, n, e FROM public_keys ORDER BY username")
+    users_with_keys = cursor.fetchall()
+
+    all_messages = []
+
+    if private_key:
+        n_priv, d_priv = private_key
+        if selected_contact:
+            cursor.execute(
+                "SELECT encrypted_message, date_envoi, username_src FROM messages WHERE username_dest = %s AND username_src = %s", 
+                (username, selected_contact)
+            )
+        else:
+            cursor.execute(
+                "SELECT encrypted_message, date_envoi, username_src FROM messages WHERE username_dest = %s", 
+                (username,)
+            )
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            try:
+                encrypted_message = ast.literal_eval(row['encrypted_message'])
+                decrypted = ''.join([chr(decodageRSA(int(c), n_priv, d_priv)) for c in encrypted_message])
+                all_messages.append({
+                    'content': decrypted,
+                    'date': row.get('date_envoi'),
+                    'from': row.get('username_src'),
+                    'type': 'received'
+                })
+            except Exception as e:
+                print(f"Erreur déchiffrement: {e}")
+                all_messages.append({
+                    'content': "[Message non déchiffrable]",
+                    'date': row.get('date_envoi'),
+                    'from': row.get('username_src'),
+                    'type': 'received'
+                })
+
+    if selected_contact:
+        cursor.execute(
+            "SELECT encrypted_message_sender, date_envoi, username_dest FROM messages WHERE username_src = %s AND username_dest = %s",
+            (username, selected_contact)
+        )
+    else:
+        cursor.execute(
+            "SELECT encrypted_message_sender, date_envoi, username_dest FROM messages WHERE username_src = %s",
+            (username,)
+        )
+    sent_rows = cursor.fetchall()
+    
+    for row in sent_rows:
+        content = '[Message non disponible]'
+        if private_key and row.get('encrypted_message_sender'):
+            try:
+                n_priv, d_priv = private_key
+                encrypted_sender = ast.literal_eval(row['encrypted_message_sender'])
+                decrypted_sent = ''.join([chr(decodageRSA(int(c), n_priv, d_priv)) for c in encrypted_sender])
+                content = decrypted_sent
+            except Exception as e:
+                print(f"Erreur déchiffrement message envoyé: {e}")
+                content = '[Message non déchiffrable]'
+        
+        all_messages.append({
+            'content': content,
+            'date': row.get('date_envoi'),
+            'to': row.get('username_dest'),
+            'type': 'sent'
+        })
+    all_messages.sort(key=lambda msg: msg.get('date') or '')
+
+    print("All messages sorted:", all_messages)
+    
 
     return render_template(
         'index.html',
-        received_messages=session.get('received_messages', [])
+        private_key=session.get('private_key'),
+        public_key=session.get('public_key'),
+        all_messages=all_messages,
+        users_with_keys=users_with_keys
     )
 
-@app.route('/disconnect', methods=['GET'])
-def disconnect():
-    
-    session.pop('username', None)
-    session.pop('received_messages', None)
-    session.pop('private_key', None)
-    session.pop('public_key', None)
-    session.pop('encrypted_message', None)
-    session.pop('decrypted_message', None)
-    return redirect('/')
 
-@app.route('/register', methods=['GET'])
+
+
+@app.route('/register', methods=['GET', 'POST'])
 def register():
-    return render_template('register.html')
+    if request.method == 'GET':
+        return render_template('register.html')
 
-@app.route('/register', methods=['POST'])
-def register_post():
     username = request.form.get('username', '')
     password = request.form.get('password', '')
 
@@ -97,15 +158,26 @@ def register_post():
         flash('Nom d\'utilisateur déjà pris.')
         return redirect('/register')
 
-    hash_password_str = hash_password(password)
-    cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hash_password_str))
+    hash_pw = hash_password(password)
+    cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, hash_pw))
     db.commit()
+    
+    p, q, e = choixCle(100, 500)
+    n_pub, e_pub = clePublique(p, q, e)
+    n_priv, d_priv = clePrivee(p, q, e)
+    
+    cursor.execute("INSERT INTO public_keys (username, n, e) VALUES (%s, %s, %s)", (username, n_pub, e_pub))
+    db.commit()
+    
+    flash('Inscription réussie. Vos clés ont été générées automatiquement. Veuillez vous connecter.')
+    return redirect('/login')
 
-    flash('Inscription réussie. Veuillez vous connecter.')
-    return redirect('/generate_key?username-local=' + username)
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
+    if request.method == 'GET':
+        return render_template('login.html')
+
     username = request.form.get('username', '')
     password = request.form.get('password', '')
 
@@ -113,19 +185,58 @@ def login():
     cursor = db.cursor()
     cursor.execute("SELECT password FROM users WHERE username = %s", (username,))
     result = cursor.fetchone()
+
     if result and verify_password(result['password'], password):
         session['username'] = username
-        flash('Connexion réussie.')
-        return render_template('index.html')
+        
+        cursor.execute("SELECT n, e FROM public_keys WHERE username = %s", (username,))
+        existing_key = cursor.fetchone()
+        
+        if not existing_key:
+            p, q, e = choixCle(100, 500)
+            n_pub, e_pub = clePublique(p, q, e)
+            n_priv, d_priv = clePrivee(p, q, e)
+            
+            cursor.execute("INSERT INTO public_keys (username, n, e) VALUES (%s, %s, %s)", (username, n_pub, e_pub))
+            db.commit()
+            
+            session['private_key'] = (n_priv, d_priv)
+            session['public_key'] = (n_pub, e_pub)
+            flash('Connexion réussie. Vos clés ont été générées automatiquement.')
+        else:
+            session['public_key'] = (existing_key['n'], existing_key['e'])
+            flash('Connexion réussie.')
+        
+        return redirect('/')
     else:
         flash('Nom d\'utilisateur ou mot de passe incorrect.')
-        return redirect('/')
-    
-    
+        return redirect('/login')
+
+
+@app.route('/disconnect')
+def disconnect():
+    session.clear()
+    return redirect('/')
+
+
+@app.route('/select_contact', methods=['POST'])
+def select_contact():
+    """Route pour sélectionner un contact et afficher uniquement sa conversation"""
+    contact = request.form.get('contact', '')
+    if contact:
+        session['last_destinataire'] = contact
+    else:
+        session.pop('last_destinataire', None)
+    return redirect('/')
 
 
 @app.route('/generate_key')
 def generate_key():
+    username = session.get('username')
+    if not username:
+        flash("Connectez-vous d'abord.")
+        return redirect('/login')
+
     p, q, e = choixCle(100, 500)
     n_pub, e_pub = clePublique(p, q, e)
     n_priv, d_priv = clePrivee(p, q, e)
@@ -133,85 +244,86 @@ def generate_key():
     session['private_key'] = (n_priv, d_priv)
     session['public_key'] = (n_pub, e_pub)
 
-    session.pop('encrypted_message', None)
-    session.pop('decrypted_message', None)
-
-    username = request.args.get('username-local', 'default_user')
-
     db = get_db()
     cursor = db.cursor()
+    cursor.execute("DELETE FROM public_keys WHERE username = %s", (username,))
     cursor.execute("INSERT INTO public_keys (username, n, e) VALUES (%s, %s, %s)", (username, n_pub, e_pub))
     db.commit()
 
-    return render_template(
-        'index.html',
-        private_key=session['private_key'],
-        public_key=session['public_key']
-    )
+    flash("Clés générées avec succès !")
+    return redirect('/')
+
 
 @app.route('/crypter_message', methods=['POST'])
 def crypter_message():
+    destinataire = request.form.get('destinataire', '')
+    message = request.form.get('message', '')
+
+    if not destinataire or not message:
+        flash("Destinataire et message requis.")
+        return redirect('/')
+
+    session['last_destinataire'] = destinataire
 
     db = get_db()
     cursor = db.cursor()
-    username_input = request.form.get('username-input', 'default_user')
-    cursor.execute("SELECT n, e FROM public_keys WHERE username = %s", (username_input ,))
-    result = cursor.fetchone()
-    if not result:
-        return "Clé publique non trouvée pour l'utilisateur spécifié.", 400
-    public_key = (result['n'], result['e'])
+    cursor.execute("SELECT n, e FROM public_keys WHERE username = %s", (destinataire,))
+    key = cursor.fetchone()
+    if not key:
+        flash(f"Clé publique de {destinataire} non trouvée.")
+        return redirect('/')
 
-    message = request.form.get('message', '')
-    crypted_message = str([codageRSA(ord(c), public_key[0], public_key[1]) for c in message])
+    public_key_dest = (key['n'], key['e'])
+    encrypted_for_dest = str([codageRSA(ord(c), public_key_dest[0], public_key_dest[1]) for c in message])
 
-    cursor.execute("INSERT INTO messages (username, encrypted_message) VALUES (%s, %s)", (username_input, crypted_message))
+    encrypted_for_sender = None
+    username_src = session.get('username')
+    sender_public_key = session.get('public_key')
+    
+    if sender_public_key:
+        encrypted_for_sender = str([codageRSA(ord(c), sender_public_key[0], sender_public_key[1]) for c in message])
+    
+    cursor.execute(
+        "INSERT INTO messages (username_src, username_dest, encrypted_message, encrypted_message_sender) VALUES (%s, %s, %s, %s)", 
+        (username_src, destinataire, encrypted_for_dest, encrypted_for_sender)
+    )
     db.commit()
 
-    return render_template(
-        'index.html',
-        private_key=session.get('private_key'),
-        public_key=public_key,
-        encrypted_message=crypted_message
-    )
-
-@app.route('/decrypter_message', methods=['POST'])
-def decrypter_message():
-    private_key = session.get('private_key')
-    if not private_key:
-        return "Vous devez générer une clé privée d'abord.", 400
-
-    n_priv, d_priv = private_key
-
-    C = session.get('encrypted_message')
-    C_list = [int(x) for x in session['encrypted_message'].split()]
-
-    if not C:
-        return "Aucun message à déchiffrer.", 400
-
-    try:
-        M_decoded = ''.join([chr(decodageRSA(c, n_priv, d_priv)) for c in C])
-    except ValueError:
-        M_decoded = '-'.join(str(decodageRSA(c, n_priv, d_priv)) for c in C)
-
-    session['decrypted_message'] = M_decoded
-
-    return render_template(
-        'index.html',
-        private_key=private_key,
-        public_key=session.get('public_key'),
-        encrypted_message=C,
-        decrypted_message=M_decoded
-    )
-
-@app.route('/show_message', methods=['GET'])
-def show_messages():
-    db = get_db()
-    cursor = db.cursor()
-    cursor.execute("SELECT encrypted_message FROM messages WHERE username = %s", (session.get('username'),))
-    received_messages = [row['encrypted_message'] for row in cursor.fetchall()]
-    session['received_messages'] = received_messages
+    flash("Message envoyé !")
     return redirect('/')
 
+
+import ast
+from flask import jsonify
+
+@app.route('/decrypter_messages')
+def decrypter_messages():
+    username = session.get('username')
+    private_key = session.get('private_key')
+
+    if not username:
+        return jsonify({"error": "Utilisateur non connecté"}), 403
+    
+    if not private_key:
+        return jsonify({"error": "Clé privée manquante - veuillez vous reconnecter"}), 403
+
+    n_priv, d_priv = private_key
+    db = get_db()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT encrypted_message FROM messages WHERE username_dest = %s", (username,))
+    rows = cursor.fetchall()
+
+    decrypted_messages = []
+    for row in rows:
+        try:
+            encrypted_message = ast.literal_eval(row['encrypted_message'])
+            decrypted = ''.join([chr(decodageRSA(int(c), n_priv, d_priv)) for c in encrypted_message])
+            decrypted_messages.append(decrypted)
+        except Exception as e:
+            decrypted_messages.append(f"[Erreur: {str(e)}]")
+
+    return jsonify({"status": "success", "count": len(decrypted_messages), "messages": decrypted_messages})
 
 if __name__ == '__main__':
     app.run(debug=True)
